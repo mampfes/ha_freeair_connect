@@ -1,0 +1,16 @@
+{
+    "config": {
+      "abort": {
+        "already_configured": "This market area is already configured.",
+        "fetch_failed": "Failed to fetch data."
+      },
+      "step": {
+        "user": {
+          "data": {
+            "serial_no": "Serial Number",
+            "password": "Password"
+          }
+        }
+      }
+    }
+  }

@@ -1,0 +1,7 @@
+__pycache__
+*.swp
+*.swo
+.vscode/
+.mypy_cache/
+venv/
+custom_components/freeair_connect/test.sh
