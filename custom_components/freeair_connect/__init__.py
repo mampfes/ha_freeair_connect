@@ -5,7 +5,7 @@ from datetime import timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (ATTR_HW_VERSION, ATTR_IDENTIFIERS,
                                  ATTR_MANUFACTURER, ATTR_MODEL, ATTR_NAME,
-                                 ATTR_SW_VERSION)
+                                 ATTR_SW_VERSION, ATTR_IDENTIFIERS)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
@@ -95,6 +95,7 @@ class FreeAirConnectShell:
             ATTR_MANUFACTURER: "bluMartin",
             ATTR_MODEL: "freeAir",
             # "entry_type": DeviceEntryType.SERVICE,
+            ATTR_IDENTIFIERS: {(DOMAIN, self.serial_no)},
             ATTR_SW_VERSION: getattr(self._fad, "version", None),
             ATTR_HW_VERSION: getattr(self._fad, "board_version", None),
         }
