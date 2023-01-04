@@ -1,11 +1,10 @@
-"""Component for FreeAir Connect support."""
 import logging
 from datetime import timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (ATTR_HW_VERSION, ATTR_IDENTIFIERS,
-                                 ATTR_MANUFACTURER, ATTR_MODEL, ATTR_NAME,
-                                 ATTR_SW_VERSION, ATTR_IDENTIFIERS)
+from homeassistant.const import (ATTR_CONFIGURATION_URL, ATTR_HW_VERSION,
+                                 ATTR_IDENTIFIERS, ATTR_MANUFACTURER,
+                                 ATTR_MODEL, ATTR_NAME, ATTR_SW_VERSION)
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
@@ -16,7 +15,7 @@ from .FreeAir import Connect
 _LOGGER = logging.getLogger(__name__)
 
 
-PLATFORMS = ["sensor"]
+PLATFORMS = ["sensor", "number", "select"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -31,7 +30,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     shells[serial_no] = shell
 
-    await hass.async_add_executor_job(shell._fetch)
+    await hass.async_add_executor_job(shell._fac.fetch)
 
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
 
@@ -61,7 +60,6 @@ class FreeAirConnectShell:
         self._hass = hass
         self._serial_no = serial_no
         self._fac = Connect(serial_no=serial_no, password=password)
-        self._fad = None  # fetched data
 
         self._fetch_callback_listener = async_track_time_interval(
             self._hass, self._fetch_callback, timedelta(minutes=10)
@@ -70,14 +68,18 @@ class FreeAirConnectShell:
     @callback
     def _fetch_callback(self, *_):
         self._hass.add_job(self._fetch)
+
+    def _fetch(self):
+        self._fac.fetch()
         dispatcher_send(self._hass, UPDATE_SENSORS_SIGNAL)
 
-    def _fetch(self, *_):
-        try:
-            self._fad = self._fac.fetch()
-        except Exception as error:
-            self._fad = None
-            _LOGGER.error(f"fetch failed : {error}")
+    async def set_comfort_level(self, value):
+        l = lambda: self._fac.set_comfort_level(value)
+        await self._hass.async_add_executor_job(l)
+
+    async def set_operation_mode(self, value):
+        l = lambda: self._fac.set_operation_mode(value)
+        await self._hass.async_add_executor_job(l)
 
     @property
     def serial_no(self):
@@ -85,17 +87,17 @@ class FreeAirConnectShell:
 
     @property
     def data(self):
-        return self._fad
+        return self._fac.data
 
     @property
     def device_info(self):
         return {
-            ATTR_IDENTIFIERS: {(DOMAIN, f"{self._serial_no}")},
+            ATTR_IDENTIFIERS: {(DOMAIN, self.serial_no)},
             ATTR_NAME: f"freeAir {self.serial_no}",
             ATTR_MANUFACTURER: "bluMartin",
             ATTR_MODEL: "freeAir",
             # "entry_type": DeviceEntryType.SERVICE,
-            ATTR_IDENTIFIERS: {(DOMAIN, self.serial_no)},
-            ATTR_SW_VERSION: getattr(self._fad, "version", None),
-            ATTR_HW_VERSION: getattr(self._fad, "board_version", None),
+            ATTR_SW_VERSION: getattr(self.data, "version", None),
+            ATTR_HW_VERSION: getattr(self.data, "board_version", None),
+            ATTR_CONFIGURATION_URL: f"https://freeair-connect.de/tabs.php?sn={self.serial_no}",
         }

@@ -16,12 +16,15 @@ def main():
     args = parser.parse_args()
 
     fac = FreeAir.Connect(serial_no=args.serial, password=args.password)
-    fad = fac.fetch()
+    fac.fetch()
+    fad = fac.data
 
     for a in dir(fad):
         if a.startswith("_"):
             continue
         print(f"{a} = {getattr(fad, a)}")
+
+    # fac.set_comfort_level(3)
 
 
 if __name__ == "__main__":

@@ -14,10 +14,10 @@ If you like this component, please give it a star on [github](https://github.com
 
 In case you would like to install manually:
 
-1. Copy the folder `custom_components/epex_spot` to `custom_components` in your Home Assistant `config` folder.
+1. Copy the folder `custom_components/freeair_connect` to `custom_components` in your Home Assistant `config` folder.
 2. Add **FreeAir Connect** integration to Home Assistant:
 
-    [![badge](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=epex_spot)
+    [![badge](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start?domain=freeair_connect)
 
 ## Sensors
 

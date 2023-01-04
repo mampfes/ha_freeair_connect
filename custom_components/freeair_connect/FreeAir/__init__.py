@@ -1,9 +1,12 @@
 import base64
 import binascii
+import logging
 from datetime import datetime
 
 import requests
 from py3rijndael import RijndaelCbc, ZeroPadding
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class _BitSlice:
@@ -48,6 +51,21 @@ class Data:
         self._timestamp = timestamp
         self._version = version
         self._version_fa100 = version_fa100
+        self._assumed_states = {}
+
+    def set_comfort_level(self, value):
+        self._assumed_states["comfort_level"] = value
+
+    @property
+    def is_comfort_level_assumed(self):
+        return "comfort_level" in self._assumed_states
+
+    def set_operation_mode(self, value):
+        self._assumed_states["operation_mode"] = value
+
+    @property
+    def is_operation_mode_assumed(self):
+        return "operation_mode" in self._assumed_states
 
     @property
     def timestamp(self):
@@ -128,11 +146,15 @@ class Data:
 
     @property
     def comfort_level(self):
-        return self._extract([_BitSlice(29, 4, 3)]) + 1
+        return self._assumed_states.get(
+            "comfort_level", self._extract([_BitSlice(29, 4, 3)]) + 1
+        )
 
     @property
     def operation_mode(self):  # = "State"
-        return self._extract([_BitSlice(30, 4, 3)])
+        return self._assumed_states.get(
+            "operation_mode", self._extract([_BitSlice(30, 4, 3)])
+        )
 
     @property
     def operation_mode_str(self):
@@ -333,17 +355,24 @@ class Connect:
     def __init__(self, serial_no, password):
         self._serial_no = serial_no
         self._password = password
+        self._fetchtime = None
+        self._fad = None
 
-    def _fetch_web(self):
-        data = {"serObject": f"serialnumber={self._serial_no}"}
-        r = requests.post(
-            "https://www.freeair-connect.de/getDataHexAjax.php", data=data
-        )
-        r.raise_for_status()
-        return r.text
+    @property
+    def fetchtime(self):
+        """Return last fetch time."""
+        return self._fetchtime
+
+    @property
+    def data(self):
+        return self._fad
 
     def fetch(self):
-        blob = self._fetch_web()
+        try:
+            blob = self._fetch_web()
+        except Exception as error:
+            self._fad = None
+            _LOGGER.error(f"fetch failed for SN {self._serial_no}: {error}")
 
         # split blob
         parts = blob.split("timestamp")
@@ -352,7 +381,15 @@ class Connect:
         version = parts[2]
         version_fa100 = parts[3]
 
-        return self._parse(encrypted_data, timestamp, version, version_fa100)
+        self._fad = self._parse(encrypted_data, timestamp, version, version_fa100)
+
+    def _fetch_web(self):
+        data = {"serObject": f"serialnumber={self._serial_no}"}
+        r = requests.post(
+            "https://www.freeair-connect.de/getDataHexAjax.php", data=data
+        )
+        r.raise_for_status()
+        return r.text
 
     def _parse(self, encrypted_data, timestamp, version, version_fa100):
         # encrypted_data = "PgiFboacxLklQ3gz8APQ87wwROYqCWCKViRZR0XCZo72CrWG3Cn91Dr+it7SfJwD"
@@ -371,3 +408,24 @@ class Connect:
 
         # extract data
         return Data(data, timestamp, version, version_fa100)
+
+    def set_comfort_level(self, value):
+        assert value >= 1 and value <= 5
+        self._fad.set_comfort_level(value)
+        self.set_cl_and_om(value, self._fad.operation_mode)
+
+    def set_operation_mode(self, value):
+        assert value >= 1 and value <= 4
+        self._fad.set_operation_mode(value)
+        self.set_cl_and_om(self._fad.comfort_level, value)
+
+    def set_cl_and_om(self, comfort_level, operation_mode):
+        if operation_mode == 0:
+            operation_mode = 1
+        data = {
+            "serObject": f"CL={comfort_level}&OM={operation_mode}&serialnumber={self._serial_no}&device=1"
+        }
+        r = requests.post(
+            "https://www.freeair-connect.de/buttonUserAjax.php", data=data
+        )
+        r.raise_for_status()
