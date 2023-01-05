@@ -15,7 +15,7 @@ from .FreeAir import Connect
 _LOGGER = logging.getLogger(__name__)
 
 
-PLATFORMS = ["sensor", "number", "select"]
+PLATFORMS = ["sensor", "binary_sensor", "number", "select"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -88,6 +88,10 @@ class FreeAirConnectShell:
     @property
     def data(self):
         return self._fac.data
+
+    @property
+    def error_text(self):
+        return self._fac.error_text
 
     @property
     def device_info(self):

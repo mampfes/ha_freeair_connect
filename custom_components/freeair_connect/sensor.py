@@ -102,11 +102,9 @@ ENTITY_LIST = [
         device_class=SensorDeviceClass.ATMOSPHERIC_PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    SensorSpec(id="error_state", entity_category=EntityCategory.DIAGNOSTIC),
     SensorSpec(id="comfort_level"),
     SensorSpec(
         id="fan_speed",
-        uom=REVOLUTIONS_PER_MINUTE,
         state_class=SensorStateClass.MEASUREMENT,
     ),
     SensorSpec(
@@ -115,12 +113,35 @@ ENTITY_LIST = [
         state_class=SensorStateClass.MEASUREMENT,
     ),
     SensorSpec(
+        id="filter_status_supply",
+    ),
+    SensorSpec(
         id="fan_speed_extract",
         uom=REVOLUTIONS_PER_MINUTE,
         state_class=SensorStateClass.MEASUREMENT,
     ),
     SensorSpec(
+        id="filter_status_extract",
+    ),
+    #    SensorSpec(
+    #        id="error_file_nbr",
+    #        entity_category=EntityCategory.DIAGNOSTIC,
+    #    ),
+    #    SensorSpec(
+    #        id="error_line_nbr",
+    #        entity_category=EntityCategory.DIAGNOSTIC,
+    #    ),
+    #    SensorSpec(
+    #        id="error_code",
+    #        entity_category=EntityCategory.DIAGNOSTIC,
+    #    ),
+    SensorSpec(
         id="air_flow_avg",
+        uom=UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorSpec(
+        id="air_flow",
         uom=UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -160,6 +181,9 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     for spec in ENTITY_LIST:
         entities.append(FreeAirSensorEntity(hass, unique_id, shell, spec))
 
+    entities.append(ErrorStateSensorEntity(hass, unique_id, shell))
+    entities.append(TestSensorEntity(hass, unique_id, shell))
+
     async_add_entities(entities)
 
 
@@ -181,7 +205,7 @@ class FreeAirSensorEntity(SensorEntity):
         self._attr_has_entity_name = True
         self._attr_should_poll = False
 
-        self._value = None
+        self._attr_native_unit_of_measurement = spec.uom
 
         if self._shell.data is not None:
             self._update_sensor()
@@ -196,22 +220,88 @@ class FreeAirSensorEntity(SensorEntity):
         attributes = {"timestamp": getattr(fad, "timestamp", None)}
         self._attr_extra_state_attributes = attributes
 
-        self._value = getattr(fad, self._spec.id, None)
+        self._attr_native_value = getattr(fad, self._spec.id, None)
 
         if self.hass is not None:
             self.async_write_ha_state()
 
-    @property
-    def available(self):
-        """Return true if value is valid."""
-        return self._value is not None
 
-    @property
-    def native_value(self):
-        """Return the value of the entity."""
-        return self._value
+class ErrorStateSensorEntity(SensorEntity):
+    """Home Assistant sensor containing FreeAir data."""
 
-    @property
-    def native_unit_of_measurement(self):
-        """Return the unit of measurement."""
-        return self._spec.uom
+    def __init__(self, hass, unique_id, shell):
+        self._hass = hass
+        self._shell = shell
+        self._id = "error_state"
+
+        # entity attributes
+        self._attr_device_info = shell.device_info
+        self._attr_unique_id = f"{unique_id}_{self._id}"
+        self._attr_name = self._id
+        self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_has_entity_name = True
+        self._attr_should_poll = False
+
+        if self._shell.data is not None:
+            self._update_sensor()
+
+        async_dispatcher_connect(hass, UPDATE_SENSORS_SIGNAL, self._update_sensor)
+
+    @callback
+    def _update_sensor(self):
+        """Update the value and the extra-state-attributes of the entity."""
+        fad = self._shell.data
+
+        attributes = {"timestamp": getattr(fad, "timestamp", None)}
+        attributes.update(self._shell.error_text)
+        self._attr_extra_state_attributes = attributes
+
+        self._attr_native_value = getattr(fad, self._id, None)
+
+        if self.hass is not None:
+            self.async_write_ha_state()
+
+
+class TestSensorEntity(SensorEntity):
+    """Home Assistant sensor containing FreeAir data."""
+
+    def __init__(self, hass, unique_id, shell):
+        self._hass = hass
+        self._shell = shell
+        self._id = "test"
+
+        # entity attributes
+        self._attr_device_info = shell.device_info
+        self._attr_unique_id = f"{unique_id}_{self._id}"
+        self._attr_name = self._id
+
+        # self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._attr_has_entity_name = True
+        self._attr_should_poll = False
+        self._attr_device_class = SensorDeviceClass.ENUM
+        self._attr_options = [
+            "good",
+            "moderate",
+            "unhealthy",
+            "unhealthy_sensitive",
+            "very_unhealthy",
+            "hazardous",
+        ]
+
+        if self._shell.data is not None:
+            self._update_sensor()
+
+        async_dispatcher_connect(hass, UPDATE_SENSORS_SIGNAL, self._update_sensor)
+
+    @callback
+    def _update_sensor(self):
+        """Update the value and the extra-state-attributes of the entity."""
+        fad = self._shell.data
+
+        attributes = {"timestamp": getattr(fad, "timestamp", None)}
+        self._attr_extra_state_attributes = attributes
+
+        self._attr_native_value = "moderate"
+
+        if self.hass is not None:
+            self.async_write_ha_state()

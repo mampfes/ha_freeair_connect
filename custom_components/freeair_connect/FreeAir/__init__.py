@@ -1,6 +1,7 @@
 import base64
 import binascii
 import logging
+import urllib.parse
 from datetime import datetime
 
 import requests
@@ -73,11 +74,11 @@ class Data:
 
     @property
     def version(self):
-        return self._version
+        return self._version.replace("x", ".")
 
     @property
     def version_fa100(self):
-        return self._version_fa100
+        return self._version_fa100.replace("x", ".")
 
     @property
     def humidity_outdoor_rel(self):
@@ -162,19 +163,19 @@ class Data:
 
     @property
     def humidity_reduction_mode(self):
-        return self._extract([_BitSlice(37, 5, 1)])
+        return bool(self._extract([_BitSlice(37, 5, 1)]))
 
     @property
     def fan_lim_2nd_room(self):
-        return self._extract([_BitSlice(35, 6, 1)])
+        return bool(self._extract([_BitSlice(35, 6, 1)]))
 
     @property
     def b_2nd_room_only_20(self):
-        return self._extract([_BitSlice(35, 5, 1)])
+        return bool(self._extract([_BitSlice(35, 5, 1)]))
 
     @property
     def summer_cooling(self):
-        return self._extract([_BitSlice(37, 6, 1)])
+        return bool(self._extract([_BitSlice(37, 6, 1)]))
 
     @property
     def error_state(self):
@@ -197,12 +198,16 @@ class Data:
         return self._extract([_BitSlice(35, 0, 5)])
 
     @property
+    def air_flow(self):
+        return self.fan_speed * 10 if self.fan_speed > 2 else self.air_flow_avg
+
+    @property
     def filter_supply_full(self):
-        return self._extract([_BitSlice(34, 5, 1)])
+        return bool(self._extract([_BitSlice(34, 5, 1)]))
 
     @property
     def filter_extract_full(self):
-        return self._extract([_BitSlice(34, 6, 1)])
+        return bool(self._extract([_BitSlice(34, 6, 1)]))
 
     @property
     def vent_pos_extract(self):
@@ -284,7 +289,7 @@ class Data:
 
     @property
     def deicing(self):
-        return self._extract([_BitSlice(23, 6, 1)])
+        return bool(self._extract([_BitSlice(23, 6, 1)]))
 
     @property
     def fsc(self):
@@ -306,6 +311,36 @@ class Data:
     def rssi(self):
         val = self._extract([_BitSlice(47, 0, 8)])
         return self._as_signed(val, 8)
+
+    @property
+    def filter_status_supply(self):
+        filter_rpms = [
+            [20, 870, 1510],
+            [30, 1e3, 1640],
+            [40, 1230, 1870],
+            [50, 1460, 2100],
+            [60, 1690, 2410],
+            [70, 1910, 2630],
+            [85, 2230, 2950],
+            [100, 2540, 3260],
+            [0, 0, 0],
+        ]
+        return self._filter_status(self.fan_speed_supply, filter_rpms)
+
+    @property
+    def filter_status_extract(self):
+        filter_rpms = [
+            [20, 920, 1560],
+            [30, 1040, 1680],
+            [40, 1260, 1900],
+            [50, 1480, 2200],
+            [60, 1700, 2420],
+            [70, 1910, 2710],
+            [85, 2210, 2930],
+            [100, 2480, 3200],
+            [0, 0, 0],
+        ]
+        return self._filter_status(self.fan_speed_extract, filter_rpms)
 
     # fehlt:
     # PRG . Programm . mve
@@ -350,6 +385,23 @@ class Data:
             result += s.get_bit_string(self._data)
         return int(result, 2)
 
+    def _filter_status(self, fan_rpm, filter_rpms):
+        fan_speed = self.fan_speed * 10
+        for e in filter_rpms:
+            if e[0] < fan_speed:
+                continue
+            diff = e[2] - e[1]
+            if fan_rpm < e[1] - diff / 2:
+                return 0
+            if fan_rpm < e[1] + diff * 0.4:
+                return 1
+            if fan_rpm < e[1] + diff * 0.7:
+                return 2
+            if fan_rpm < e[1] + diff * 0.95:
+                return 3
+            return 4
+        return None
+
 
 class Connect:
     def __init__(self, serial_no, password):
@@ -357,6 +409,7 @@ class Connect:
         self._password = password
         self._fetchtime = None
         self._fad = None
+        self._error_text = {}
 
     @property
     def fetchtime(self):
@@ -367,11 +420,16 @@ class Connect:
     def data(self):
         return self._fad
 
+    @property
+    def error_text(self):
+        return self._error_text
+
     def fetch(self):
         try:
-            blob = self._fetch_web()
+            blob = self._fetch_data()
         except Exception as error:
             self._fad = None
+            self._error_text = {}
             _LOGGER.error(f"fetch failed for SN {self._serial_no}: {error}")
 
         # split blob
@@ -383,13 +441,32 @@ class Connect:
 
         self._fad = self._parse(encrypted_data, timestamp, version, version_fa100)
 
-    def _fetch_web(self):
+        if self._fad.error_state not in (0, 22):
+            # fetch error string
+            self._fetch_error()
+        else:
+            self._error_text = {}
+
+    def _fetch_data(self):
         data = {"serObject": f"serialnumber={self._serial_no}"}
         r = requests.post(
             "https://www.freeair-connect.de/getDataHexAjax.php", data=data
         )
         r.raise_for_status()
         return r.text
+
+    def _fetch_error(self):
+        data = {"serObject": f"err=1&serialnumber={self._serial_no}&device=1"}
+        r = requests.post(
+            "https://www.freeair-connect.de/getErrorTextLong.php", data=data
+        )
+        r.raise_for_status()
+
+        err = urllib.parse.parse_qs(r.text)
+        self._error_text = {
+            "en": err["en"][0],
+            "de": err["de"][0],
+        }
 
     def _parse(self, encrypted_data, timestamp, version, version_fa100):
         # encrypted_data = "PgiFboacxLklQ3gz8APQ87wwROYqCWCKViRZR0XCZo72CrWG3Cn91Dr+it7SfJwD"
