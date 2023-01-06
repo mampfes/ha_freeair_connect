@@ -12,5 +12,42 @@
           }
         }
       }
+    },
+    "entity": {
+      "select": {
+        "operation_mode": {
+          "state": {
+            "comfort": "Comfort",
+            "sleep": "Sleep",
+            "turbo": "Turbo",
+            "turbo_cool": "Turbo Cool"
+          }
+        }
+      },
+      "sensor" : {
+        "operation_mode": {
+          "state": {
+            "comfort": "Comfort",
+            "sleep": "Sleep",
+            "turbo": "Turbo",
+            "turbo_cool": "Turbo Cool",
+            "service": "Service",
+            "test": "Test",
+            "manufacturer": "Manufacturer"
+          }
+        },
+        "control_auto": {
+          "state": {
+            "min_ventilation": "Minimum Ventilation",
+            "humidity_reduction_rel": "Humidity Reduction (rel)",
+            "humidity_reduction_abs": "Humidity Reduction (abs)",
+            "active_cooling": "Active Cooling",
+            "co2_reduction": "CO2 Reduction",
+            "water_insertion": "Water Insertion",
+            "outdoor_temp_lt_22_degc": "Outdoor Temp < -22",
+            "humidity_input": "Humidity Input"
+          }
+        }
+      }
     }
   }

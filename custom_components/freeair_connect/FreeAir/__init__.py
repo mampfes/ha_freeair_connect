@@ -23,26 +23,25 @@ class _BitSlice:
 
 
 _OperationModeMap = {
-    0: "Comfort",
-    1: "Comfort",
-    2: "Sleep",
-    3: "Turbo",
-    4: "Turbocool",
-    5: "Service",
-    6: "Test",
-    7: "Manufacturer",
+    0: "comfort",
+    1: "comfort",
+    2: "sleep",
+    3: "turbo",
+    4: "turbo_cool",
+    5: "service",
+    6: "test",
+    7: "manufacturer",
 }
 
 _ControlAutoMap = {
-    0: "Minimum Ventilation",
-    1: "Humidity Reduction (rel)",
-    2: "Humidity Reduction (abs)",
-    3: "Active Cooling",
-    4: "CO2 Reduction",
-    5: "Water Insertion",
-    6: "Outdoor Temp < -22",
-    7: "Humidity Input",
-    # fehlt: defrosting
+    0: "min_ventilation",
+    1: "humidity_reduction_rel",
+    2: "humidity_reduction_abs",
+    3: "active_cooling",
+    4: "co2_reduction",
+    5: "water_insertion",
+    6: "outdoor_temp_lt_22_degc",
+    7: "humidity_input",
 }
 
 
@@ -342,36 +341,33 @@ class Data:
         ]
         return self._filter_status(self.fan_speed_extract, filter_rpms)
 
-    # fehlt:
-    # PRG . Programm . mve
-    # RA [m2] . Room Area .
-    # 2A [m3/h] . 2nd Room Adapter . 100
-    # ADY [kg/m3] Air Densty . 1132
-    # EFN . 0
-    # ELN . 0
-    # ECO . 0
-    # SWV . Software Version . 2.07
-    # SNR . Serial Number . 20643-EGKueche
+    @property
+    def energy_savings(self):
+        if self.temp_extract - self.temp_outdoor < 2:
+            return 0
 
-    # Program
-    # mve . Minimum Ventilation . On
-    # hrr . Humidity reducation (rel) . Off
-    # hra . Humidity reducation (abs) . Off
-    # col . Active Cooling . Off
-    # co2 . CO2 Reduction . Off
+        return round(
+            (self.air_flow * (self.temp_supply - self.temp_outdoor)) / 3 + 0.5, 1
+        )
 
-    # Reduction (Mini)
-    # dfr . Defrosting . Off
-    # hin . Humidity Input . Off
-    # otb . Outdoor Temperatur < -22C . Off
-    # win . Water Insertin . Off
+    @property
+    def heat_recovery(self):
+        if self.air_flow == 0:
+            return 100
 
-    # Questions:
-    # TSC . Supply Temp (cal.) . 19.9  ==> temp_virt_sup_exit???
-    # TPE, TBY, TBA, TPS (alle 3) ==> control_set_*
-    # ZKL, AKL (beide 27) ==> fsc, fec
-    # LKA (68) ==> csu
-    # LKF (13) ==> cfa
+        if self.temp_extract - self.temp_outdoor < 2:
+            return 100
+
+        return round(
+            100
+            * (
+                1
+                - (self.temp_extract - self.temp_supply)
+                / (self.temp_extract - self.temp_outdoor)
+            )
+            + 0.5,
+            1,
+        )
 
     def _as_signed(self, value, potenz):
         maxUn = 2**potenz

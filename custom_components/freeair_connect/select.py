@@ -10,10 +10,10 @@ _LOGGER = logging.getLogger(__name__)
 
 
 MODES = {
-    "Comfort": 1,
-    "Sleep": 2,
-    "Turbo": 3,
-    "Turbo Cool": 4,
+    "comfort": 1,
+    "sleep": 2,
+    "turbo": 3,
+    "turbo_cool": 4,
 }
 
 
@@ -46,6 +46,7 @@ class OperationModeSelectEntity(SelectEntity):
         self._attr_unique_id = f"{unique_id}_{self._id}"
         self._attr_name = self._id
 
+        self._attr_translation_key = (self._id,)
         self._attr_options = list(MODES.keys())
 
         self._attr_has_entity_name = True

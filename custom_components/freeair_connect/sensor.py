@@ -5,7 +5,8 @@ from homeassistant.components.sensor import (SensorDeviceClass, SensorEntity,
 from homeassistant.const import (CONCENTRATION_PARTS_PER_MILLION, PERCENTAGE,
                                  REVOLUTIONS_PER_MINUTE,
                                  SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
-                                 UnitOfPressure, UnitOfTemperature, UnitOfTime,
+                                 UnitOfPower, UnitOfPressure,
+                                 UnitOfTemperature, UnitOfTime,
                                  UnitOfVolumeFlowRate)
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -18,13 +19,20 @@ _LOGGER = logging.getLogger(__name__)
 
 class SensorSpec:
     def __init__(
-        self, id, uom=None, device_class=None, state_class=None, entity_category=None
+        self,
+        id,
+        uom=None,
+        device_class=None,
+        state_class=None,
+        entity_category=None,
+        translation_key=None,
     ):
         self._id = id
         self._uom = uom
         self._device_class = device_class
         self._state_class = state_class
         self._entity_category = entity_category
+        self._translation_key = translation_key
 
     @property
     def id(self):
@@ -45,6 +53,10 @@ class SensorSpec:
     @property
     def entity_category(self):
         return self._entity_category
+
+    @property
+    def translation_key(self):
+        return self._translation_key
 
 
 ENTITY_LIST = [
@@ -164,6 +176,19 @@ ENTITY_LIST = [
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    SensorSpec(
+        id="energy_savings",
+        uom=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorSpec(
+        id="heat_recovery",
+        uom=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
+    SensorSpec(id="operation_mode_str", translation_key="operation_mode"),
+    SensorSpec(id="control_auto_str", translation_key="control_auto"),
 ]
 
 
@@ -182,7 +207,6 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         entities.append(FreeAirSensorEntity(hass, unique_id, shell, spec))
 
     entities.append(ErrorStateSensorEntity(hass, unique_id, shell))
-    entities.append(TestSensorEntity(hass, unique_id, shell))
 
     async_add_entities(entities)
 
@@ -202,6 +226,7 @@ class FreeAirSensorEntity(SensorEntity):
         self._attr_device_class = spec.device_class
         self._attr_state_class = spec.state_class
         self._attr_entity_category = spec.entity_category
+        self._attr_translation_key = spec.translation_key
         self._attr_has_entity_name = True
         self._attr_should_poll = False
 
@@ -251,57 +276,15 @@ class ErrorStateSensorEntity(SensorEntity):
     def _update_sensor(self):
         """Update the value and the extra-state-attributes of the entity."""
         fad = self._shell.data
+        language = self._hass.config.as_dict()["language"]
 
-        attributes = {"timestamp": getattr(fad, "timestamp", None)}
-        attributes.update(self._shell.error_text)
+        attributes = {
+            "timestamp": getattr(fad, "timestamp", None),
+            "error_text": self._shell.error_text.get(language),
+        }
         self._attr_extra_state_attributes = attributes
 
         self._attr_native_value = getattr(fad, self._id, None)
-
-        if self.hass is not None:
-            self.async_write_ha_state()
-
-
-class TestSensorEntity(SensorEntity):
-    """Home Assistant sensor containing FreeAir data."""
-
-    def __init__(self, hass, unique_id, shell):
-        self._hass = hass
-        self._shell = shell
-        self._id = "test"
-
-        # entity attributes
-        self._attr_device_info = shell.device_info
-        self._attr_unique_id = f"{unique_id}_{self._id}"
-        self._attr_name = self._id
-
-        # self._attr_entity_category = EntityCategory.DIAGNOSTIC
-        self._attr_has_entity_name = True
-        self._attr_should_poll = False
-        self._attr_device_class = SensorDeviceClass.ENUM
-        self._attr_options = [
-            "good",
-            "moderate",
-            "unhealthy",
-            "unhealthy_sensitive",
-            "very_unhealthy",
-            "hazardous",
-        ]
-
-        if self._shell.data is not None:
-            self._update_sensor()
-
-        async_dispatcher_connect(hass, UPDATE_SENSORS_SIGNAL, self._update_sensor)
-
-    @callback
-    def _update_sensor(self):
-        """Update the value and the extra-state-attributes of the entity."""
-        fad = self._shell.data
-
-        attributes = {"timestamp": getattr(fad, "timestamp", None)}
-        self._attr_extra_state_attributes = attributes
-
-        self._attr_native_value = "moderate"
 
         if self.hass is not None:
             self.async_write_ha_state()
