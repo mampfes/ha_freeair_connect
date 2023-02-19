@@ -189,6 +189,9 @@ ENTITY_LIST = [
     ),
     SensorSpec(id="operation_mode_str", translation_key="operation_mode"),
     SensorSpec(id="control_auto_str", translation_key="control_auto"),
+    SensorSpec(
+        id="timestamp",
+    ),
 ]
 
 

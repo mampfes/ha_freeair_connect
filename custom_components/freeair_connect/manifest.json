@@ -8,6 +8,6 @@
   "issue_tracker": "https://github.com/mampfes/ha_freeair_connect/issues",
   "codeowners": ["@mampfes"],
   "iot_class": "cloud_polling",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "integration_type": "device"
 }

@@ -22,7 +22,7 @@ def main():
     for a in dir(fad):
         if a.startswith("_"):
             continue
-        print(f"{a} = {getattr(fad, a)}")
+        print(f"{a} = {getattr(fad, a)} {type(getattr(fad, a))}")
 
     # fac.set_comfort_level(3)
 
