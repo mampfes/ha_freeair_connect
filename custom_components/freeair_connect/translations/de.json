@@ -1,0 +1,53 @@
+{
+    "config": {
+      "abort": {
+        "already_configured": "Dieses Gerät ist bereits eingerichtet.",
+        "fetch_failed": "Die Daten konnten nicht abgerufen werden."
+      },
+      "step": {
+        "user": {
+          "data": {
+            "serial_no": "Seriennummer",
+            "password": "Passwort"
+          }
+        }
+      }
+    },
+    "entity": {
+      "select": {
+        "operation_mode": {
+          "state": {
+            "comfort": "Comfort",
+            "sleep": "Sleep",
+            "turbo": "Turbo",
+            "turbo_cool": "Turbo-Cool"
+          }
+        }
+      },
+      "sensor" : {
+        "operation_mode": {
+          "state": {
+            "comfort": "Comfort",
+            "sleep": "Sleep",
+            "turbo": "Turbo",
+            "turbo_cool": "Turbo-Cool",
+            "service": "Service",
+            "test": "Test",
+            "manufacturer": "Hersteller"
+          }
+        },
+        "control_auto": {
+          "state": {
+            "min_ventilation": "Minimal-Lüftung",
+            "humidity_reduction_rel": "Entfeuchtung (rel)",
+            "humidity_reduction_abs": "Entfeuchtung (abs)",
+            "active_cooling": "Aktive Kühlung",
+            "co2_reduction": "CO2 Reduktion",
+            "water_insertion": "Wasser-Eintrag",
+            "outdoor_temp_lt_22_degc": "Außenluft < -22 °C",
+            "humidity_input": "Feuchtigkeits-Eintrag"
+          }
+        }
+      }
+    }
+  }
