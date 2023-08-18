@@ -1,0 +1,3 @@
+fetch_data:
+  name: Fetch data from device.
+  description: Fetch data from device.

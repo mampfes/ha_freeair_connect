@@ -22,3 +22,9 @@ In case you would like to install manually:
 ## Sensors
 
 This component provides sensors for all major values provided by a FreeAir device.
+
+## Refresh Service
+
+If you want to trigger a manual refresh of all device data, you can call the service:
+
+`freeair_connect.fetch_data`
