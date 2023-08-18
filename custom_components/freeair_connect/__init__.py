@@ -1,11 +1,12 @@
 import logging
 from datetime import timedelta
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (ATTR_CONFIGURATION_URL, ATTR_HW_VERSION,
                                  ATTR_IDENTIFIERS, ATTR_MANUFACTURER,
                                  ATTR_MODEL, ATTR_NAME, ATTR_SW_VERSION)
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 
@@ -16,6 +17,20 @@ _LOGGER = logging.getLogger(__name__)
 
 
 PLATFORMS = ["sensor", "binary_sensor", "number", "select"]
+
+
+async def async_setup(hass, config):
+    async def async_fetch_data(service: ServiceCall) -> None:
+        shells = hass.data.setdefault(DOMAIN, {})
+
+        for shell in shells.values():
+            shell._fetch_callback()
+
+    # Register new Service fetch_data
+    hass.services.async_register(
+        DOMAIN, "fetch_data", async_fetch_data, schema=vol.Schema({})
+    )
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
