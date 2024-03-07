@@ -462,11 +462,13 @@ class Connect:
         return r.text
 
     def _fetch_error(self):
-        data = {"serObject": f"err=1&device=1"}
+        data = {"serObject": f"err=1&serialnumber={self._serial_no}&device=1"}
         r = self._session.post(
             "https://www.freeair-connect.de/getErrorTextLong.php", data=data
         )
-        r.raise_for_status()
+
+        if not r.ok:
+            return
 
         err = urllib.parse.parse_qs(r.text)
         self._error_text = {
