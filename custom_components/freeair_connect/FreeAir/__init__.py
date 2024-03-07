@@ -406,6 +406,7 @@ class Connect:
         self._fetchtime = None
         self._fad = None
         self._error_text = {}
+        self._session = requests.Session()
 
     @property
     def fetchtime(self):
@@ -420,8 +421,20 @@ class Connect:
     def error_text(self):
         return self._error_text
 
+    def _login(self):
+        self._session.post(
+            "https://www.freeair-connect.de/index.php",
+            data={"serialnumber": self._serial_no},
+        ).raise_for_status()
+
+        self._session.post(
+            "https://www.freeair-connect.de/index.php",
+            data={"serial_password": self._password},
+        ).raise_for_status()
+
     def fetch(self):
         try:
+            self._login()
             blob = self._fetch_data()
         except Exception as error:
             self._fad = None
@@ -444,16 +457,13 @@ class Connect:
             self._error_text = {}
 
     def _fetch_data(self):
-        data = {"serObject": f"serialnumber={self._serial_no}"}
-        r = requests.post(
-            "https://www.freeair-connect.de/getDataHexAjax.php", data=data
-        )
+        r = self._session.post("https://www.freeair-connect.de/getDataHexAjax.php")
         r.raise_for_status()
         return r.text
 
     def _fetch_error(self):
-        data = {"serObject": f"err=1&serialnumber={self._serial_no}&device=1"}
-        r = requests.post(
+        data = {"serObject": f"err=1&device=1"}
+        r = self._session.post(
             "https://www.freeair-connect.de/getErrorTextLong.php", data=data
         )
         r.raise_for_status()
@@ -495,10 +505,8 @@ class Connect:
     def set_cl_and_om(self, comfort_level, operation_mode):
         if operation_mode == 0:
             operation_mode = 1
-        data = {
-            "serObject": f"CL={comfort_level}&OM={operation_mode}&serialnumber={self._serial_no}&device=1"
-        }
-        r = requests.post(
+        data = {"serObject": f"CL={comfort_level}&OM={operation_mode}&device=1"}
+        r = self._session.post(
             "https://www.freeair-connect.de/buttonUserAjax.php", data=data
         )
         r.raise_for_status()
