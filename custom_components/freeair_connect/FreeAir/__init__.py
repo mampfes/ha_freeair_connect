@@ -507,8 +507,8 @@ class Connect:
     def set_cl_and_om(self, comfort_level, operation_mode):
         if operation_mode == 0:
             operation_mode = 1
-        data = {"serObject": f"CL={comfort_level}&OM={operation_mode}&device=1"}
+        data = {"serObject": f"RB_CL={comfort_level}&RB_OM={operation_mode}&serial_password={self._password}"}
         r = self._session.post(
-            "https://www.freeair-connect.de/buttonUserAjax.php", data=data
+            "https://www.freeair-connect.de/bf.php", data=data
         )
         r.raise_for_status()
