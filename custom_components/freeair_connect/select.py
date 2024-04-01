@@ -46,7 +46,7 @@ class OperationModeSelectEntity(SelectEntity):
         self._attr_unique_id = f"{unique_id}_{self._id}"
         self._attr_name = self._id
 
-        self._attr_translation_key = (self._id,)
+        self._attr_translation_key = (self._id)
         self._attr_options = list(MODES.keys())
 
         self._attr_has_entity_name = True

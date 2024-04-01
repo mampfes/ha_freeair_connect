@@ -5,3 +5,4 @@ __pycache__
 .mypy_cache/
 venv/
 custom_components/freeair_connect/test.sh
+devices.txt
