@@ -482,13 +482,16 @@ class Connect:
         encrypted_data = base64.b64decode(encrypted_data)
 
         # prepare initialization vector
-        iv = "000102030405060708090a0b0c0d0e0f"
+        #iv = "000102030405060708090a0b0c0d0e0f"
+        iv = "30313233343536373839303132333435"
         iv = binascii.unhexlify(iv)
+        
+        size = 32 # key size in bytes
 
         # fill password to 16 characters with zeros
-        pw = self._password.ljust(16, "0")
+        pw = self._password.ljust(size, "0")
 
-        rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
+        rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(size), block_size=size)
         data = rijndael.decrypt(encrypted_data)
 
         # extract data
