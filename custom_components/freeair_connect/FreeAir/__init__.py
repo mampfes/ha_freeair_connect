@@ -481,12 +481,21 @@ class Connect:
         # encrypted_data = urllib.parse.unquote(encrypted_data) # this is probably not needed!
         encrypted_data = base64.b64decode(encrypted_data)
 
+        version_numbers = version.split("x")
+        if version_numbers[0] == 2 and (version_numbers[1] <= 13 or version_numbers[1] == 20 or version_numbers[1] == 21):
+            iv = "000102030405060708090a0b0c0d0e0f"
+            size = 16
+        else:
+            iv = "30313233343536373839303132333435"
+            size = 32
+
         # prepare initialization vector
-        iv = "000102030405060708090a0b0c0d0e0f"
         iv = binascii.unhexlify(iv)
+        
+        size = 32 # key size in bytes
 
         # fill password to 16 characters with zeros
-        pw = self._password.ljust(16, "0")
+        pw = self._password.ljust(size, "0")
 
         rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
         data = rijndael.decrypt(encrypted_data)
