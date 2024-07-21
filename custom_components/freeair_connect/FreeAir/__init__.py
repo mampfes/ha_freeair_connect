@@ -482,7 +482,9 @@ class Connect:
         encrypted_data = base64.b64decode(encrypted_data)
 
         version_numbers = version.split("x")
-        if version_numbers[0] == 2 and (version_numbers[1] <= 13 or version_numbers[1] == 20 or version_numbers[1] == 21):
+        major = int(version_numbers[0])
+        minor = int(version_numbers[1])
+        if major == 2 and (minor <= 13 or minor == 20 or minor == 21):
             iv = "000102030405060708090a0b0c0d0e0f"
             size = 16
         else:
@@ -492,8 +494,6 @@ class Connect:
         # prepare initialization vector
         iv = binascii.unhexlify(iv)
         
-        size = 32 # key size in bytes
-
         # fill password to 16 characters with zeros
         pw = self._password.ljust(size, "0")
 
