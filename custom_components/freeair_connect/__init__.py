@@ -118,5 +118,5 @@ class FreeAirConnectShell:
             # "entry_type": DeviceEntryType.SERVICE,
             ATTR_SW_VERSION: getattr(self.data, "version", None),
             ATTR_HW_VERSION: getattr(self.data, "board_version", None),
-            ATTR_CONFIGURATION_URL: f"https://freeair-connect.de/tabs.php?sn={self.serial_no}",
+            ATTR_CONFIGURATION_URL: f"https://freeair-connect.de/?serialnumber={self.serial_no}",
         }
