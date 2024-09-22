@@ -516,7 +516,13 @@ class Connect:
     def set_cl_and_om(self, comfort_level, operation_mode):
         if operation_mode == 0:
             operation_mode = 1
-        data = {"RB_CL": comfort_level, "RB_OM": operation_mode, "serial_password": self._password}
+        data = {
+            "RB_CL": comfort_level,
+            "RB_OM": operation_mode,
+            "srn_button": f"{self._serial_no}-Test",
+            "lang_button": "en",
+            "serial_password": "",
+        }
         r = self._session.post(
             "https://www.freeair-connect.de/bf.php", data=data
         )
