@@ -5,9 +5,9 @@ from datetime import datetime
 
 import requests
 from py3rijndael import RijndaelCbc, ZeroPadding
+from aiohttp import web
 
 _LOGGER = logging.getLogger(__name__)
-
 
 class _BitSlice:
     def __init__(self, bytepos, bitoffset, length):
@@ -414,6 +414,8 @@ class Connect:
         self._error_text = {}
         self._session = requests.Session()
         self._session.headers.update(_DEFAULT_HEADERS)
+        self._comfort_level = None
+        self._operation_mode = None
 
     @property
     def fetchtime(self):
@@ -439,32 +441,7 @@ class Connect:
             raise Exception(f"Login failed: {response.get('serverMessage', 'unknown error')}")
 
     def fetch(self):
-        entry = None
-        try:
-            self._login()
-            entry = self._fetch_data()
-        except Exception as error:
-            self._fad = None
-            self._error_text = {}
-            _LOGGER.error(f"fetch failed for SN {self._serial_no}: {error}")
-            return
-
-        if entry is None:
-            _LOGGER.error(f"No data received for SN {self._serial_no}")
-            return
-
-        encrypted_data = entry["log"]
-        timestamp = datetime.strptime(entry["timestamp"], "%Y-%m-%d %H:%M:%S")
-        version = entry["versionCC3200"]
-        version_fa100 = entry["versionMain"]
-
-        self._fad = self._parse(encrypted_data, timestamp, version, version_fa100)
-        self._fetchtime = timestamp
-
-        if self._fad.error_state not in (0, 22):
-            self._fetch_error()
-        else:
-            self._error_text = {}
+        _LOGGER.info(f"No longer fetching data from freeair-connect.de")
 
     def _fetch_data(self):
         r = self._session.get(
@@ -476,9 +453,10 @@ class Connect:
         return next((e for e in entries if e.get("type") == 1), None)
 
     def _fetch_error(self):
-        r = self._session.get(
-            f"{_BASE_URL}/error.php",
-            params={"errId": self._fad.error_state},
+        self._login()
+        data = {"serObject": f"err=1&serialnumber={self._serial_no}&device=1"}
+        r = self._session.post(
+            "https://www.freeair-connect.de/getErrorTextLong.php", data=data
         )
 
         if not r.ok:
@@ -490,22 +468,24 @@ class Connect:
             "de": err["de"]["long"],
         }
 
-    def _parse(self, encrypted_data, timestamp, version, version_fa100):
-        encrypted_data = base64.b64decode(encrypted_data)
+    def parse(self, encrypted_data, timestamp, version, version_fa100):
+        # encrypted_data = "PgiFboacxLklQ3gz8APQ87wwROYqCWCKViRZR0XCZo72CrWG3Cn91Dr+it7SfJwD"
+        # encrypted_data = urllib.parse.unquote(encrypted_data) # this is probably not needed!
+        # encrypted_data = base64.b64decode(encrypted_data)
 
-        version_numbers = version.split("x")
-        major = int(version_numbers[0])
-        minor = int(version_numbers[1])
-        if major == 2 and (minor <= 13 or minor == 20 or minor == 21):
-            iv = "000102030405060708090a0b0c0d0e0f"
-            size = 16
-        else:
-            iv = "30313233343536373839303132333435"
-            size = 32
+#        version_numbers = version.split("x")
+#        major = int(version_numbers[0])
+#        minor = int(version_numbers[1])
+#        if major == 2 and (minor <= 13 or minor == 20 or minor == 21):
+        iv = "000102030405060708090a0b0c0d0e0f"
+        size = 16
+#        else:
+#            iv = "30313233343536373839303132333435"
+#            size = 32
 
         # prepare initialization vector
         iv = binascii.unhexlify(iv)
-        
+
         # fill password to 16 characters with zeros
         pw = self._password.ljust(size, "0")
 
@@ -513,25 +493,37 @@ class Connect:
         data = rijndael.decrypt(encrypted_data)
 
         # extract data
-        return Data(data, timestamp, version, version_fa100)
+        self._fad = Data(data, timestamp, version, version_fa100)
+
+        if self._fad.error_state not in (0, 22):
+            # fetch error string
+            self._fetch_error()
+        else:
+            self._error_text = {}
+
+        if self._comfort_level is None:
+            self._comfort_level = self._fad.comfort_level
+        self._fad.set_comfort_level(self._comfort_level)
+
+        if self._operation_mode is None:
+            self._operation_mode = self._fad.operation_mode
+        self._fad.set_operation_mode(self._operation_mode)
+
+        return self._fad
 
     def set_comfort_level(self, value):
         assert value >= 1 and value <= 5
-        self._fad.set_comfort_level(value)
-        self.set_cl_and_om(value, self._fad.operation_mode)
+        self.set_cl_and_om(value, self._operation_mode)
 
     def set_operation_mode(self, value):
         assert value >= 1 and value <= 4
-        self._fad.set_operation_mode(value)
-        self.set_cl_and_om(self._fad.comfort_level, value)
+        self.set_cl_and_om(self._comfort_level, value)
 
     def set_cl_and_om(self, comfort_level, operation_mode):
         if operation_mode == 0:
             operation_mode = 1
-        data = {
-            "serialnumber": self._serial_no,
-            "CL": comfort_level,
-            "OM": operation_mode,
-        }
-        r = self._session.post(f"{_BASE_URL}/button.php", data=data)
-        r.raise_for_status()
+        self._comfort_level = comfort_level
+        self._operation_mode = operation_mode
+        self._fad.set_comfort_level(self._comfort_level)
+        self._fad.set_operation_mode(self._operation_mode)
+        _LOGGER.info(f"Setting comfort_level to {self._comfort_level}, operation_mode to {self._operation_mode}")
