@@ -399,6 +399,11 @@ class Data:
         return None
 
 
+_DEFAULT_HEADERS = {
+    "Accept-Encoding": "gzip, deflate",
+}
+
+
 class Connect:
     def __init__(self, serial_no, password):
         self._serial_no = serial_no
@@ -407,6 +412,7 @@ class Connect:
         self._fad = None
         self._error_text = {}
         self._session = requests.Session()
+        self._session.headers.update(_DEFAULT_HEADERS)
 
     @property
     def fetchtime(self):
@@ -433,6 +439,7 @@ class Connect:
         ).raise_for_status()
 
     def fetch(self):
+        blob = None
         try:
             self._login()
             blob = self._fetch_data()
@@ -440,8 +447,12 @@ class Connect:
             self._fad = None
             self._error_text = {}
             _LOGGER.error(f"fetch failed for SN {self._serial_no}: {error}")
+            return
 
-        # split blob
+        if blob is None:
+            _LOGGER.error(f"No data received for SN {self._serial_no}")
+            return
+
         parts = blob.split("timestamp")
         encrypted_data = parts[0]
         timestamp = datetime.strptime(parts[1], "%Y-%m-%d %H:%M:%S")
@@ -449,9 +460,9 @@ class Connect:
         version_fa100 = parts[3]
 
         self._fad = self._parse(encrypted_data, timestamp, version, version_fa100)
+        self._fetchtime = timestamp
 
         if self._fad.error_state not in (0, 22):
-            # fetch error string
             self._fetch_error()
         else:
             self._error_text = {}
@@ -477,8 +488,6 @@ class Connect:
         }
 
     def _parse(self, encrypted_data, timestamp, version, version_fa100):
-        # encrypted_data = "PgiFboacxLklQ3gz8APQ87wwROYqCWCKViRZR0XCZo72CrWG3Cn91Dr+it7SfJwD"
-        # encrypted_data = urllib.parse.unquote(encrypted_data) # this is probably not needed!
         encrypted_data = base64.b64decode(encrypted_data)
 
         version_numbers = version.split("x")
