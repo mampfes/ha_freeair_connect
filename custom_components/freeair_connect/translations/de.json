@@ -8,7 +8,8 @@
         "user": {
           "data": {
             "serial_no": "Seriennummer",
-            "password": "Passwort"
+            "password": "Passwort",
+            "server_mode": "Lokalen Server aktivieren (Gerät sendet Daten direkt, Port 80)"
           }
         }
       }

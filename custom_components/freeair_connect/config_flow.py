@@ -5,7 +5,7 @@ Used by UI to setup integration.
 import voluptuous as vol
 from homeassistant import config_entries
 
-from .const import CONF_PASSWORD, CONF_SERIAL_NO, DOMAIN
+from .const import CONF_PASSWORD, CONF_SERIAL_NO, CONF_SERVER_MODE, DOMAIN
 
 
 class FreeAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore
@@ -27,7 +27,11 @@ class FreeAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: igno
         """
         if user_input is None:
             data_schema = vol.Schema(
-                {vol.Required(CONF_SERIAL_NO): str, vol.Required(CONF_PASSWORD): str},
+                {
+                    vol.Required(CONF_SERIAL_NO): str,
+                    vol.Required(CONF_PASSWORD): str,
+                    vol.Optional(CONF_SERVER_MODE, default=False): bool,
+                },
             )
             return self.async_show_form(step_id="user", data_schema=data_schema)
 
@@ -41,5 +45,9 @@ class FreeAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: igno
         title = f"FreeAir S/N: {serial_no}"
         return self.async_create_entry(
             title=title,
-            data={CONF_SERIAL_NO: serial_no, CONF_PASSWORD: user_input[CONF_PASSWORD]},
+            data={
+                CONF_SERIAL_NO: serial_no,
+                CONF_PASSWORD: user_input[CONF_PASSWORD],
+                CONF_SERVER_MODE: user_input.get(CONF_SERVER_MODE, False),
+            },
         )

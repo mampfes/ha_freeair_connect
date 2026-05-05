@@ -406,14 +406,17 @@ _DEFAULT_HEADERS = {
 
 
 class Connect:
-    def __init__(self, serial_no, password):
+    def __init__(self, serial_no, password, server_mode=False):
         self._serial_no = serial_no
         self._password = password
+        self._server_mode = server_mode
         self._fetchtime = None
         self._fad = None
         self._error_text = {}
         self._session = requests.Session()
         self._session.headers.update(_DEFAULT_HEADERS)
+        self._comfort_level = None
+        self._operation_mode = None
 
     @property
     def fetchtime(self):
@@ -490,9 +493,33 @@ class Connect:
             "de": err["de"]["long"],
         }
 
-    def _parse(self, encrypted_data, timestamp, version, version_fa100):
-        encrypted_data = base64.b64decode(encrypted_data)
+    def parse(self, encrypted_bytes, timestamp, version, version_fa100):
+        """Decrypt and parse raw bytes pushed by the device (server mode)."""
+        self._fad = self._decrypt(encrypted_bytes, timestamp, version, version_fa100)
+        self._fetchtime = timestamp
 
+        if self._fad.error_state not in (0, 22):
+            try:
+                self._fetch_error()
+            except Exception:
+                pass
+        else:
+            self._error_text = {}
+
+        if self._comfort_level is None:
+            self._comfort_level = self._fad.comfort_level
+        self._fad.set_comfort_level(self._comfort_level)
+
+        if self._operation_mode is None:
+            self._operation_mode = self._fad.operation_mode
+        self._fad.set_operation_mode(self._operation_mode)
+
+        return self._fad
+
+    def _parse(self, encrypted_data, timestamp, version, version_fa100):
+        return self._decrypt(base64.b64decode(encrypted_data), timestamp, version, version_fa100)
+
+    def _decrypt(self, encrypted_bytes, timestamp, version, version_fa100):
         version_numbers = version.split("x")
         major = int(version_numbers[0])
         minor = int(version_numbers[1])
@@ -503,35 +530,35 @@ class Connect:
             iv = "30313233343536373839303132333435"
             size = 32
 
-        # prepare initialization vector
         iv = binascii.unhexlify(iv)
-        
-        # fill password to 16 characters with zeros
         pw = self._password.ljust(size, "0")
 
         rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
-        data = rijndael.decrypt(encrypted_data)
+        data = rijndael.decrypt(encrypted_bytes)
 
-        # extract data
         return Data(data, timestamp, version, version_fa100)
 
     def set_comfort_level(self, value):
         assert value >= 1 and value <= 5
-        self._fad.set_comfort_level(value)
-        self.set_cl_and_om(value, self._fad.operation_mode)
+        self.set_cl_and_om(value, self._operation_mode or self._fad.operation_mode)
 
     def set_operation_mode(self, value):
         assert value >= 1 and value <= 4
-        self._fad.set_operation_mode(value)
-        self.set_cl_and_om(self._fad.comfort_level, value)
+        self.set_cl_and_om(self._comfort_level or self._fad.comfort_level, value)
 
     def set_cl_and_om(self, comfort_level, operation_mode):
         if operation_mode == 0:
             operation_mode = 1
-        data = {
-            "serialnumber": self._serial_no,
-            "CL": comfort_level,
-            "OM": operation_mode,
-        }
-        r = self._session.post(f"{_BASE_URL}/button.php", data=data)
-        r.raise_for_status()
+        self._comfort_level = comfort_level
+        self._operation_mode = operation_mode
+        if self._fad:
+            self._fad.set_comfort_level(comfort_level)
+            self._fad.set_operation_mode(operation_mode)
+        if not self._server_mode:
+            data = {
+                "serialnumber": self._serial_no,
+                "CL": comfort_level,
+                "OM": operation_mode,
+            }
+            r = self._session.post(f"{_BASE_URL}/button.php", data=data)
+            r.raise_for_status()

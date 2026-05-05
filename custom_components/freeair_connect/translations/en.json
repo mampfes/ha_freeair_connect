@@ -8,7 +8,8 @@
         "user": {
           "data": {
             "serial_no": "Serial Number",
-            "password": "Password"
+            "password": "Password",
+            "server_mode": "Enable local server (device pushes data directly, port 80)"
           }
         }
       }

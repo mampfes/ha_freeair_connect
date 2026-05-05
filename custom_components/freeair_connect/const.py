@@ -5,6 +5,7 @@ DOMAIN = "freeair_connect"
 
 CONF_SERIAL_NO = "serial_no"
 CONF_PASSWORD = "password"
+CONF_SERVER_MODE = "server_mode"
 
 UPDATE_SENSORS_SIGNAL = f"{DOMAIN}_update_sensors_signal"
 
