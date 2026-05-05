@@ -5,9 +5,9 @@ from datetime import datetime
 
 import requests
 from py3rijndael import RijndaelCbc, ZeroPadding
-from aiohttp import web
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class _BitSlice:
     def __init__(self, bytepos, bitoffset, length):
@@ -306,9 +306,17 @@ class Data:
         return self._extract([_BitSlice(34, 4, 1), _BitSlice(21, 0, 7)])
 
     @property
+    def _is_crypt256(self):
+        parts = self._version.split("x")
+        major = int(parts[0])
+        minor = int(parts[1])
+        return not (major == 2 and (minor <= 13 or minor == 20 or minor == 21))
+
+    @property
     def rssi(self):
-        val = self._extract([_BitSlice(47, 0, 8)])
-        return self._as_signed(val, 8)
+        # AES-256 firmware stores RSSI at byte 43; AES-128 at byte 47
+        byte_pos = 43 if self._is_crypt256 else 47
+        return self._as_signed(self._data[byte_pos], 8)
 
     @property
     def filter_status_supply(self):
@@ -406,9 +414,10 @@ _DEFAULT_HEADERS = {
 
 
 class Connect:
-    def __init__(self, serial_no, password):
+    def __init__(self, serial_no, password, server_mode=False):
         self._serial_no = serial_no
         self._password = password
+        self._server_mode = server_mode
         self._fetchtime = None
         self._fad = None
         self._error_text = {}
@@ -441,7 +450,32 @@ class Connect:
             raise Exception(f"Login failed: {response.get('serverMessage', 'unknown error')}")
 
     def fetch(self):
-        _LOGGER.info(f"No longer fetching data from freeair-connect.de")
+        entry = None
+        try:
+            self._login()
+            entry = self._fetch_data()
+        except Exception as error:
+            self._fad = None
+            self._error_text = {}
+            _LOGGER.error(f"fetch failed for SN {self._serial_no}: {error}")
+            return
+
+        if entry is None:
+            _LOGGER.error(f"No data received for SN {self._serial_no}")
+            return
+
+        encrypted_data = entry["log"]
+        timestamp = datetime.strptime(entry["timestamp"], "%Y-%m-%d %H:%M:%S")
+        version = entry["versionCC3200"]
+        version_fa100 = entry["versionMain"]
+
+        self._fad = self._parse(encrypted_data, timestamp, version, version_fa100)
+        self._fetchtime = timestamp
+
+        if self._fad.error_state not in (0, 22):
+            self._fetch_error()
+        else:
+            self._error_text = {}
 
     def _fetch_data(self):
         r = self._session.get(
@@ -453,10 +487,9 @@ class Connect:
         return next((e for e in entries if e.get("type") == 1), None)
 
     def _fetch_error(self):
-        self._login()
-        data = {"serObject": f"err=1&serialnumber={self._serial_no}&device=1"}
-        r = self._session.post(
-            "https://www.freeair-connect.de/getErrorTextLong.php", data=data
+        r = self._session.get(
+            f"{_BASE_URL}/error.php",
+            params={"errId": self._fad.error_state},
         )
 
         if not r.ok:
@@ -468,36 +501,17 @@ class Connect:
             "de": err["de"]["long"],
         }
 
-    def parse(self, encrypted_data, timestamp, version, version_fa100):
-        # encrypted_data = "PgiFboacxLklQ3gz8APQ87wwROYqCWCKViRZR0XCZo72CrWG3Cn91Dr+it7SfJwD"
-        # encrypted_data = urllib.parse.unquote(encrypted_data) # this is probably not needed!
-        # encrypted_data = base64.b64decode(encrypted_data)
-
-#        version_numbers = version.split("x")
-#        major = int(version_numbers[0])
-#        minor = int(version_numbers[1])
-#        if major == 2 and (minor <= 13 or minor == 20 or minor == 21):
-        iv = "000102030405060708090a0b0c0d0e0f"
-        size = 16
-#        else:
-#            iv = "30313233343536373839303132333435"
-#            size = 32
-
-        # prepare initialization vector
-        iv = binascii.unhexlify(iv)
-
-        # fill password to 16 characters with zeros
-        pw = self._password.ljust(size, "0")
-
-        rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
-        data = rijndael.decrypt(encrypted_data)
-
-        # extract data
-        self._fad = Data(data, timestamp, version, version_fa100)
+    def parse(self, encrypted_bytes, timestamp, version, version_fa100):
+        """Decrypt and parse raw bytes pushed by the device (server mode)."""
+        # Server mode always uses AES-128 regardless of firmware version
+        self._fad = self._decrypt_aes128(encrypted_bytes, timestamp, version, version_fa100)
+        self._fetchtime = timestamp
 
         if self._fad.error_state not in (0, 22):
-            # fetch error string
-            self._fetch_error()
+            try:
+                self._fetch_error()
+            except Exception:
+                pass
         else:
             self._error_text = {}
 
@@ -511,19 +525,56 @@ class Connect:
 
         return self._fad
 
+    def _parse(self, encrypted_data, timestamp, version, version_fa100):
+        return self._decrypt(base64.b64decode(encrypted_data), timestamp, version, version_fa100)
+
+    def _decrypt_aes128(self, encrypted_bytes, timestamp, version, version_fa100):
+        iv = binascii.unhexlify("000102030405060708090a0b0c0d0e0f")
+        pw = self._password.ljust(16, "0")
+        rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
+        data = rijndael.decrypt(encrypted_bytes)
+        return Data(data, timestamp, version, version_fa100)
+
+    def _decrypt(self, encrypted_bytes, timestamp, version, version_fa100):
+        version_numbers = version.split("x")
+        major = int(version_numbers[0])
+        minor = int(version_numbers[1])
+        if major == 2 and (minor <= 13 or minor == 20 or minor == 21):
+            iv = "000102030405060708090a0b0c0d0e0f"
+            size = 16
+        else:
+            iv = "30313233343536373839303132333435"
+            size = 32
+
+        iv = binascii.unhexlify(iv)
+        pw = self._password.ljust(size, "0")
+
+        rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
+        data = rijndael.decrypt(encrypted_bytes)
+
+        return Data(data, timestamp, version, version_fa100)
+
     def set_comfort_level(self, value):
         assert value >= 1 and value <= 5
-        self.set_cl_and_om(value, self._operation_mode)
+        self.set_cl_and_om(value, self._operation_mode or self._fad.operation_mode)
 
     def set_operation_mode(self, value):
         assert value >= 1 and value <= 4
-        self.set_cl_and_om(self._comfort_level, value)
+        self.set_cl_and_om(self._comfort_level or self._fad.comfort_level, value)
 
     def set_cl_and_om(self, comfort_level, operation_mode):
         if operation_mode == 0:
             operation_mode = 1
         self._comfort_level = comfort_level
         self._operation_mode = operation_mode
-        self._fad.set_comfort_level(self._comfort_level)
-        self._fad.set_operation_mode(self._operation_mode)
-        _LOGGER.info(f"Setting comfort_level to {self._comfort_level}, operation_mode to {self._operation_mode}")
+        if self._fad:
+            self._fad.set_comfort_level(comfort_level)
+            self._fad.set_operation_mode(operation_mode)
+        if not self._server_mode:
+            data = {
+                "serialnumber": self._serial_no,
+                "CL": comfort_level,
+                "OM": operation_mode,
+            }
+            r = self._session.post(f"{_BASE_URL}/button.php", data=data)
+            r.raise_for_status()
