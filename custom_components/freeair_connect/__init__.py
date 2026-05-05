@@ -35,7 +35,8 @@ class BluHomeConnectServer:
             _LOGGER.warning("Could not find shell for serial number derived from %s", s_value)
             return web.Response()
         timestamp = datetime.now()
-        encrypted_data = base64.b64decode(b_value, altchars="-_")
+        # Device uses ';' as base64 padding instead of '='
+        encrypted_data = base64.b64decode(b_value.replace(";", "="), altchars="-_")
         version = self._extract_version(s_value)
         shell.parse(encrypted_data, timestamp, version, version)
         return web.Response()

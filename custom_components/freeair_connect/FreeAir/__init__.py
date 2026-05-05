@@ -306,9 +306,17 @@ class Data:
         return self._extract([_BitSlice(34, 4, 1), _BitSlice(21, 0, 7)])
 
     @property
+    def _is_crypt256(self):
+        parts = self._version.split("x")
+        major = int(parts[0])
+        minor = int(parts[1])
+        return not (major == 2 and (minor <= 13 or minor == 20 or minor == 21))
+
+    @property
     def rssi(self):
-        val = self._extract([_BitSlice(47, 0, 8)])
-        return self._as_signed(val, 8)
+        # AES-256 firmware stores RSSI at byte 43; AES-128 at byte 47
+        byte_pos = 43 if self._is_crypt256 else 47
+        return self._as_signed(self._data[byte_pos], 8)
 
     @property
     def filter_status_supply(self):
