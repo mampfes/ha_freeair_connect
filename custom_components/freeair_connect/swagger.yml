@@ -1,0 +1,306 @@
+openapi: 3.0.4
+info:
+  title: freeair-connect api
+  version: '1.0.0'
+
+servers:
+  - url: https://freeair-connect.de/
+    description: main server
+
+paths:
+  /api/login.php:
+    post:
+      summary: Authenticate with a device password, or check existing session
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - serialnumber
+              properties:
+                serialnumber:
+                  type: integer
+                  example: 52001
+                  description: Numeric serial number of the device (max 6 digits)
+                serial_password:
+                  type: string
+                  example: freeAir
+                  description: Device password. Omit to check existing session only.
+                lang:
+                  type: string
+                  example: de
+                  description: Language code (e.g. "de", "en"). Stored in session.
+      responses:
+        "200":
+          description: Login response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/loginResponse'
+        "400":
+          description: Bad request (invalid serialnumber)
+        "405":
+          description: Method not allowed
+
+  /api/logout.php:
+    post:
+      summary: Log out a device from the session
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - serialnumber
+              properties:
+                serialnumber:
+                  type: integer
+                  example: 52001
+                  description: Numeric serial number of the device (max 6 digits)
+      responses:
+        "200":
+          description: Logout successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "400":
+          description: Bad request (invalid serialnumber)
+        "405":
+          description: Method not allowed
+
+  /api/values.php:
+    get:
+      summary: Returns the primary and secondary logs for a device
+      parameters:
+        - in: query
+          name: serialnumber
+          required: true
+          schema:
+            type: integer
+          description: Numeric serial number of the device
+      responses:
+        "200":
+          description: >
+            A JSON array of log values. The first element is the latest primary log (type 1).
+            Remaining elements are day logs (type 2) or month logs (type 3). The log data is encrypted.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/value'
+        "400":
+          description: Bad request (invalid serialnumber)
+        "401":
+          description: Unauthorized (not logged in for this device)
+
+  /api/error.php:
+    get:
+      summary: Returns error type details by ID
+      parameters:
+        - in: query
+          name: errId
+          required: true
+          schema:
+            type: integer
+          description: Numeric ID of the error type
+      responses:
+        "200":
+          description: Error type details in German and English
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id_error_type:
+                    type: integer
+                    example: 5
+                  en:
+                    $ref: '#/components/schemas/errorinfo'
+                  de:
+                    $ref: '#/components/schemas/errorinfo'
+        "400":
+          description: Bad request (invalid errId)
+        "404":
+          description: Error type not found
+
+  /api/user-info.php:
+    post:
+      summary: Update the device name and notification email address
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - serialnumber
+                - pw
+              properties:
+                serialnumber:
+                  type: integer
+                  example: 52001
+                  description: Numeric serial number of the device (max 6 digits)
+                pw:
+                  type: string
+                  example: freeAir
+                  description: Device password (4–16 characters), used to re-validate the request
+                name:
+                  type: string
+                  example: "Wohnung Muster"
+                  description: Display name for the device
+                ea1:
+                  type: string
+                  format: email
+                  example: "user@example.com"
+                  description: Email address for error notifications (max 50 characters)
+      responses:
+        "200":
+          description: Update successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "400":
+          description: Bad request (invalid input)
+        "401":
+          description: Unauthorized (not logged in or wrong password)
+        "404":
+          description: No log data found for device
+        "405":
+          description: Method not allowed
+
+  /api/button.php:
+    post:
+      summary: Set comfort level and operating mode on a device
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/buttonData'
+      responses:
+        "200":
+          description: Button command stored successfully
+        "400":
+          description: Bad request (invalid parameters)
+        "401":
+          description: Unauthorized (wrong password)
+        "404":
+          description: No log data found for device
+        "405":
+          description: Method not allowed
+
+  /api/language.php:
+    get:
+      deprecated: true
+      summary: Returns translation strings
+      parameters:
+        - in: query
+          name: lang
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A JSON object of language strings
+
+  /api/secLogTranslations.php:
+    get:
+      deprecated: true
+      summary: Returns secondary log translations
+      responses:
+        "200":
+          description: Secondary log translation strings
+
+components:
+  schemas:
+    loginResponse:
+      type: object
+      properties:
+        showLogout:
+          type: boolean
+          description: Whether the logout button should be shown (i.e. login was successful)
+          example: true
+        serverMessage:
+          type: string
+          description: Localised message to display to the user (empty on success)
+          example: ""
+        inputActive:
+          type: boolean
+          description: Whether the password input should remain active
+          example: true
+        deviceName:
+          type: string
+          description: Device name from the database
+          example: "Wohnung Muster"
+
+    buttonData:
+      type: object
+      required:
+        - serialnumber
+      properties:
+        serialnumber:
+          type: integer
+          example: 50000
+          description: Serial number of the device
+        CL:
+          type: integer
+          example: 2
+          description: Comfort level to set
+        OM:
+          type: integer
+          example: 1
+          description: Operating mode to set
+
+    value:
+      type: object
+      properties:
+        log:
+          type: string
+          example: "ABCABCABCABCABCABCABCABC"
+          description: Encrypted log blob from the device
+        timestamp:
+          type: string
+          example: "2026-02-17 09:06:53"
+        type:
+          type: integer
+          example: 1
+          description: "1 = primary log, 2 = secondary day log, 3 = secondary month log"
+        versionCC3200:
+          type: string
+          example: "2x24x0"
+        versionMain:
+          type: string
+          example: "2x24x0"
+
+    errorinfo:
+      type: object
+      properties:
+        short:
+          type: string
+          example: "Err-FiDI"
+          description: Short error code for display in a table
+        long:
+          type: string
+          example: "This is a long description of the error"
+          description: "Error message body — displayed as: pre + long + part2"
+        part2:
+          type: string
+          example: "(Gerät hat ausgeschaltet)"
+          description: "Error message suffix — displayed as: pre + long + part2"
+        pre:
+          type: string
+          example: "Error:"
+          description: "Error message prefix — displayed as: pre + long + part2"
