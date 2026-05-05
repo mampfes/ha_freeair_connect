@@ -8,6 +8,25 @@ from homeassistant import config_entries
 from .const import CONF_PASSWORD, CONF_SERIAL_NO, CONF_SERVER_MODE, DOMAIN
 
 
+class FreeAirOptionsFlowHandler(config_entries.OptionsFlow):
+    """Options flow to change settings after initial setup."""
+
+    async def async_step_init(self, user_input=None):
+        current_server_mode = self.config_entry.options.get(
+            CONF_SERVER_MODE,
+            self.config_entry.data.get(CONF_SERVER_MODE, False),
+        )
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {vol.Optional(CONF_SERVER_MODE, default=current_server_mode): bool}
+            ),
+        )
+
+
 class FreeAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: ignore
     """Component config flow."""
 
@@ -15,6 +34,10 @@ class FreeAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: igno
 
     def __init__(self):
         self._source_name = None
+
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        return FreeAirOptionsFlowHandler(config_entry)
 
     async def async_step_user(self, user_input=None):
         """Handle the start of the config flow.

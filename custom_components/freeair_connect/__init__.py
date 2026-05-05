@@ -94,7 +94,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     shells = hass.data.setdefault(DOMAIN, {})
 
     serial_no = entry.data[CONF_SERIAL_NO]
-    server_mode = entry.data.get(CONF_SERVER_MODE, False)
+    server_mode = entry.options.get(CONF_SERVER_MODE, entry.data.get(CONF_SERVER_MODE, False))
 
     shell = FreeAirConnectShell(
         hass, serial_no=serial_no, password=entry.data[CONF_PASSWORD], server_mode=server_mode

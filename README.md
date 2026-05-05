@@ -23,6 +23,15 @@ In case you would like to install manually:
 
 This component provides sensors for all major values provided by a FreeAir device.
 
+## Local Server Mode
+
+Instead of polling the freeair-connect.de cloud, the integration can run a local HTTP server that receives data directly from the device. To use this mode:
+
+1. Enable **"Lokalen Server aktivieren"** / **"Enable local server"** during setup, or afterwards via **Settings → Integrations → FreeAir Connect → Configure**.
+2. Using the FreeAir USB app, configure the device's server address to the IP address of your Home Assistant instance.
+
+> **Note:** The local server listens on port 80. Make sure this port is not already in use on your Home Assistant host.
+
 ## Refresh Service
 
 If you want to trigger a manual refresh of all device data, you can call the service:
