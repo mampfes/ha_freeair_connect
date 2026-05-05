@@ -37,7 +37,7 @@ class FreeAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: igno
 
     @staticmethod
     def async_get_options_flow(config_entry):
-        return FreeAirOptionsFlowHandler(config_entry)
+        return FreeAirOptionsFlowHandler()
 
     async def async_step_user(self, user_input=None):
         """Handle the start of the config flow.
