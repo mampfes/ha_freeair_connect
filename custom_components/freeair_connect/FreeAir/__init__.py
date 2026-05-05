@@ -503,7 +503,8 @@ class Connect:
 
     def parse(self, encrypted_bytes, timestamp, version, version_fa100):
         """Decrypt and parse raw bytes pushed by the device (server mode)."""
-        self._fad = self._decrypt(encrypted_bytes, timestamp, version, version_fa100)
+        # Server mode always uses AES-128 regardless of firmware version
+        self._fad = self._decrypt_aes128(encrypted_bytes, timestamp, version, version_fa100)
         self._fetchtime = timestamp
 
         if self._fad.error_state not in (0, 22):
@@ -526,6 +527,13 @@ class Connect:
 
     def _parse(self, encrypted_data, timestamp, version, version_fa100):
         return self._decrypt(base64.b64decode(encrypted_data), timestamp, version, version_fa100)
+
+    def _decrypt_aes128(self, encrypted_bytes, timestamp, version, version_fa100):
+        iv = binascii.unhexlify("000102030405060708090a0b0c0d0e0f")
+        pw = self._password.ljust(16, "0")
+        rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
+        data = rijndael.decrypt(encrypted_bytes)
+        return Data(data, timestamp, version, version_fa100)
 
     def _decrypt(self, encrypted_bytes, timestamp, version, version_fa100):
         version_numbers = version.split("x")
