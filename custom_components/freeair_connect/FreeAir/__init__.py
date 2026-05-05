@@ -1,7 +1,6 @@
 import base64
 import binascii
 import logging
-import urllib.parse
 from datetime import datetime
 
 import requests
@@ -399,6 +398,8 @@ class Data:
         return None
 
 
+_BASE_URL = "https://freeair-connect.de/api"
+
 _DEFAULT_HEADERS = {
     "Accept-Encoding": "gzip, deflate",
 }
@@ -428,36 +429,34 @@ class Connect:
         return self._error_text
 
     def _login(self):
-        self._session.post(
-            "https://www.freeair-connect.de/index.php",
-            data={"serialnumber": self._serial_no},
-        ).raise_for_status()
-
-        self._session.post(
-            "https://www.freeair-connect.de/index.php",
-            data={"serial_password": self._password},
-        ).raise_for_status()
+        r = self._session.post(
+            f"{_BASE_URL}/login.php",
+            data={"serialnumber": self._serial_no, "serial_password": self._password},
+        )
+        r.raise_for_status()
+        response = r.json()
+        if not response.get("showLogout"):
+            raise Exception(f"Login failed: {response.get('serverMessage', 'unknown error')}")
 
     def fetch(self):
-        blob = None
+        entry = None
         try:
             self._login()
-            blob = self._fetch_data()
+            entry = self._fetch_data()
         except Exception as error:
             self._fad = None
             self._error_text = {}
             _LOGGER.error(f"fetch failed for SN {self._serial_no}: {error}")
             return
 
-        if blob is None:
+        if entry is None:
             _LOGGER.error(f"No data received for SN {self._serial_no}")
             return
 
-        parts = blob.split("timestamp")
-        encrypted_data = parts[0]
-        timestamp = datetime.strptime(parts[1], "%Y-%m-%d %H:%M:%S")
-        version = parts[2]
-        version_fa100 = parts[3]
+        encrypted_data = entry["log"]
+        timestamp = datetime.strptime(entry["timestamp"], "%Y-%m-%d %H:%M:%S")
+        version = entry["versionCC3200"]
+        version_fa100 = entry["versionMain"]
 
         self._fad = self._parse(encrypted_data, timestamp, version, version_fa100)
         self._fetchtime = timestamp
@@ -468,23 +467,27 @@ class Connect:
             self._error_text = {}
 
     def _fetch_data(self):
-        r = self._session.post("https://www.freeair-connect.de/getDataHexAjax.php")
+        r = self._session.get(
+            f"{_BASE_URL}/values.php",
+            params={"serialnumber": self._serial_no},
+        )
         r.raise_for_status()
-        return r.text
+        entries = r.json()
+        return next((e for e in entries if e.get("type") == 1), None)
 
     def _fetch_error(self):
-        data = {"serObject": f"err=1&serialnumber={self._serial_no}&device=1"}
-        r = self._session.post(
-            "https://www.freeair-connect.de/getErrorTextLong.php", data=data
+        r = self._session.get(
+            f"{_BASE_URL}/error.php",
+            params={"errId": self._fad.error_state},
         )
 
         if not r.ok:
             return
 
-        err = urllib.parse.parse_qs(r.text)
+        err = r.json()
         self._error_text = {
-            "en": err["en"][0],
-            "de": err["de"][0],
+            "en": err["en"]["long"],
+            "de": err["de"]["long"],
         }
 
     def _parse(self, encrypted_data, timestamp, version, version_fa100):
@@ -526,13 +529,9 @@ class Connect:
         if operation_mode == 0:
             operation_mode = 1
         data = {
-            "RB_CL": comfort_level,
-            "RB_OM": operation_mode,
-            "srn_button": f"{self._serial_no}-Test",
-            "lang_button": "en",
-            "serial_password": "",
+            "serialnumber": self._serial_no,
+            "CL": comfort_level,
+            "OM": operation_mode,
         }
-        r = self._session.post(
-            "https://www.freeair-connect.de/bf.php", data=data
-        )
+        r = self._session.post(f"{_BASE_URL}/button.php", data=data)
         r.raise_for_status()
