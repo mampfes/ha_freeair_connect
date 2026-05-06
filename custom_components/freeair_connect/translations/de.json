@@ -1,4 +1,14 @@
 {
+    "options": {
+      "step": {
+        "init": {
+          "description": "Im lokalen Server-Modus sendet das Gerät Daten direkt an Home Assistant (Port 80). Dazu muss die IP-Adresse von Home Assistant in der FreeAir USB-App am Gerät eingestellt werden.",
+          "data": {
+            "server_mode": "Lokalen Server aktivieren (Port 80)"
+          }
+        }
+      }
+    },
     "config": {
       "abort": {
         "already_configured": "Dieses Gerät ist bereits eingerichtet.",
@@ -6,9 +16,11 @@
       },
       "step": {
         "user": {
+          "description": "Im lokalen Server-Modus sendet das Gerät Daten direkt an Home Assistant (Port 80). Dazu muss die IP-Adresse von Home Assistant in der FreeAir USB-App am Gerät eingestellt werden.",
           "data": {
             "serial_no": "Seriennummer",
-            "password": "Passwort"
+            "password": "Passwort",
+            "server_mode": "Lokalen Server aktivieren (Port 80)"
           }
         }
       }
