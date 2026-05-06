@@ -71,6 +71,7 @@ class BluHomeConnectServer:
         site = web.TCPSite(runner, port=BLUHOME_CONNECT_PORT)
         try:
             await site.start()
+            self._hass.data[f"{DOMAIN}_server_runner"] = runner
             _LOGGER.info("Started HTTP server on port %s", BLUHOME_CONNECT_PORT)
         except OSError as error:
             _LOGGER.error("Failed to start HTTP server on port %d: %s", BLUHOME_CONNECT_PORT, error)
@@ -120,11 +121,17 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry):
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         shells = hass.data[DOMAIN]
-
         del shells[entry.data[CONF_SERIAL_NO]]
 
+        # Stop server if no remaining shells need it
+        if not any(s._server_mode for s in shells.values()):
+            runner = hass.data.pop(f"{DOMAIN}_server_runner", None)
+            if runner:
+                await runner.cleanup()
+                _LOGGER.info("Stopped HTTP server")
+            hass.data.pop(f"{DOMAIN}_server_started", None)
+
         if len(shells) == 0:
-            # also remove shells if not used by any entry any more
             del hass.data[DOMAIN]
 
     return unload_ok
