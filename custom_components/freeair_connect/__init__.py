@@ -12,7 +12,9 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers.dispatcher import dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import CONF_PASSWORD, CONF_SERIAL_NO, CONF_SERVER_MODE, DOMAIN, UPDATE_SENSORS_SIGNAL
+from .const import (CONF_LOCAL_SERVER_PORT, CONF_PASSWORD, CONF_SERIAL_NO,
+                    CONF_SERVER_MODE, DEFAULT_LOCAL_SERVER_PORT, DOMAIN,
+                    UPDATE_SENSORS_SIGNAL)
 from .FreeAir import Connect
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,12 +22,11 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["sensor", "binary_sensor", "number", "select"]
 
-BLUHOME_CONNECT_PORT = 80
-
 
 class BluHomeConnectServer:
-    def __init__(self, hass: HomeAssistant):
+    def __init__(self, hass: HomeAssistant, port: int = DEFAULT_LOCAL_SERVER_PORT):
         self._hass = hass
+        self._port = port
 
     async def blu_home_index(self, request):
         s_value = request.rel_url.query["s"]
@@ -68,13 +69,13 @@ class BluHomeConnectServer:
         app.add_routes([web.get("/apps/data/blucontrol/control/", self.blu_home_control)])
         runner = web.AppRunner(app, access_log=None)
         await runner.setup()
-        site = web.TCPSite(runner, port=BLUHOME_CONNECT_PORT)
+        site = web.TCPSite(runner, port=self._port)
         try:
             await site.start()
             self._hass.data[f"{DOMAIN}_server_runner"] = runner
-            _LOGGER.info("Started HTTP server on port %s", BLUHOME_CONNECT_PORT)
+            _LOGGER.info("Started HTTP server on port %s", self._port)
         except OSError as error:
-            _LOGGER.error("Failed to start HTTP server on port %d: %s", BLUHOME_CONNECT_PORT, error)
+            _LOGGER.error("Failed to start HTTP server on port %d: %s", self._port, error)
 
 
 async def async_setup(hass, config):
@@ -97,6 +98,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     serial_no = entry.data[CONF_SERIAL_NO]
     server_mode = entry.options.get(CONF_SERVER_MODE, entry.data.get(CONF_SERVER_MODE, False))
+    port = entry.options.get(CONF_LOCAL_SERVER_PORT, entry.data.get(CONF_LOCAL_SERVER_PORT, DEFAULT_LOCAL_SERVER_PORT))
 
     shell = FreeAirConnectShell(
         hass, serial_no=serial_no, password=entry.data[CONF_PASSWORD], server_mode=server_mode
@@ -105,7 +107,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if server_mode:
         if not hass.data.get(f"{DOMAIN}_server_started"):
-            server = BluHomeConnectServer(hass)
+            server = BluHomeConnectServer(hass, port)
             await server.start_server()
             hass.data[f"{DOMAIN}_server_started"] = True
     else:

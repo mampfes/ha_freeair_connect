@@ -5,7 +5,10 @@ Used by UI to setup integration.
 import voluptuous as vol
 from homeassistant import config_entries
 
-from .const import CONF_PASSWORD, CONF_SERIAL_NO, CONF_SERVER_MODE, DOMAIN
+from .const import (CONF_LOCAL_SERVER_PORT, CONF_PASSWORD, CONF_SERIAL_NO,
+                    CONF_SERVER_MODE, DEFAULT_LOCAL_SERVER_PORT, DOMAIN)
+
+PORT_SCHEMA = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
 
 
 class FreeAirOptionsFlowHandler(config_entries.OptionsFlow):
@@ -16,13 +19,20 @@ class FreeAirOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_SERVER_MODE,
             self.config_entry.data.get(CONF_SERVER_MODE, False),
         )
+        current_port = self.config_entry.options.get(
+            CONF_LOCAL_SERVER_PORT,
+            self.config_entry.data.get(CONF_LOCAL_SERVER_PORT, DEFAULT_LOCAL_SERVER_PORT),
+        )
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Optional(CONF_SERVER_MODE, default=current_server_mode): bool}
+                {
+                    vol.Optional(CONF_SERVER_MODE, default=current_server_mode): bool,
+                    vol.Optional(CONF_LOCAL_SERVER_PORT, default=current_port): PORT_SCHEMA,
+                }
             ),
         )
 
@@ -54,6 +64,7 @@ class FreeAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: igno
                     vol.Required(CONF_SERIAL_NO): str,
                     vol.Required(CONF_PASSWORD): str,
                     vol.Optional(CONF_SERVER_MODE, default=False): bool,
+                    vol.Optional(CONF_LOCAL_SERVER_PORT, default=DEFAULT_LOCAL_SERVER_PORT): PORT_SCHEMA,
                 },
             )
             return self.async_show_form(step_id="user", data_schema=data_schema)
@@ -72,5 +83,6 @@ class FreeAirConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):  # type: igno
                 CONF_SERIAL_NO: serial_no,
                 CONF_PASSWORD: user_input[CONF_PASSWORD],
                 CONF_SERVER_MODE: user_input.get(CONF_SERVER_MODE, False),
+                CONF_LOCAL_SERVER_PORT: user_input.get(CONF_LOCAL_SERVER_PORT, DEFAULT_LOCAL_SERVER_PORT),
             },
         )

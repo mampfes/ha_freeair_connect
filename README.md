@@ -30,7 +30,7 @@ Instead of polling the freeair-connect.de cloud, the integration can run a local
 1. Enable **"Lokalen Server aktivieren"** / **"Enable local server"** during setup, or afterwards via **Settings → Integrations → FreeAir Connect → Configure**.
 2. Using the FreeAir USB app, configure the device's server address to the IP address of your Home Assistant instance.
 
-> **Note:** The local server listens on port 80. Make sure this port is not already in use on your Home Assistant host.
+> **Note:** The local server listens on port 80 by default. Make sure this port is not already in use on your Home Assistant host. You can change the port in the integration options, but only do so when running a reverse proxy in front of the server, since the device expects to reach the server on port 80.
 
 ## Refresh Service
 
