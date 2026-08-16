@@ -6,6 +6,9 @@ DOMAIN = "freeair_connect"
 CONF_SERIAL_NO = "serial_no"
 CONF_PASSWORD = "password"
 CONF_SERVER_MODE = "server_mode"
+CONF_LOCAL_SERVER_PORT = "local_server_port"
+
+DEFAULT_LOCAL_SERVER_PORT = 80
 
 UPDATE_SENSORS_SIGNAL = f"{DOMAIN}_update_sensors_signal"
 
