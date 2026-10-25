@@ -45,11 +45,13 @@ _ControlAutoMap = {
 
 
 class Data:
-    def __init__(self, rawdata, timestamp, version, version_fa100):
+    def __init__(self, rawdata, timestamp, version, version_fa100, crypt256=None):
         self._data = rawdata
         self._timestamp = timestamp
         self._version = version
         self._version_fa100 = version_fa100
+        # Encryption actually used for this payload. None = derive from firmware version.
+        self._crypt256 = crypt256
         self._assumed_states = {}
 
     def set_comfort_level(self, value):
@@ -307,6 +309,8 @@ class Data:
 
     @property
     def _is_crypt256(self):
+        if self._crypt256 is not None:
+            return self._crypt256
         parts = self._version.split("x")
         major = int(parts[0])
         minor = int(parts[1])
@@ -533,7 +537,7 @@ class Connect:
         pw = self._password.ljust(16, "0")
         rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
         data = rijndael.decrypt(encrypted_bytes)
-        return Data(data, timestamp, version, version_fa100)
+        return Data(data, timestamp, version, version_fa100, crypt256=False)
 
     def _decrypt(self, encrypted_bytes, timestamp, version, version_fa100):
         version_numbers = version.split("x")
@@ -552,7 +556,7 @@ class Connect:
         rijndael = RijndaelCbc(key=pw, iv=iv, padding=ZeroPadding(16), block_size=16)
         data = rijndael.decrypt(encrypted_bytes)
 
-        return Data(data, timestamp, version, version_fa100)
+        return Data(data, timestamp, version, version_fa100, crypt256=(size == 32))
 
     def set_comfort_level(self, value):
         assert value >= 1 and value <= 5
