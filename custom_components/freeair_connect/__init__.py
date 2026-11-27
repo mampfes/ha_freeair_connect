@@ -201,6 +201,9 @@ class FreeAirConnectShell:
 
     @property
     def device_info(self):
+        # The device registry requires hw_version to be a string
+        # (non-string values stop working in Home Assistant 2026.12).
+        board_version = getattr(self.data, "board_version", None)
         return {
             ATTR_IDENTIFIERS: {(DOMAIN, self.serial_no)},
             ATTR_NAME: f"freeAir {self.serial_no}",
@@ -208,6 +211,6 @@ class FreeAirConnectShell:
             ATTR_MODEL: "freeAir",
             # "entry_type": DeviceEntryType.SERVICE,
             ATTR_SW_VERSION: getattr(self.data, "version", None),
-            ATTR_HW_VERSION: getattr(self.data, "board_version", None),
+            ATTR_HW_VERSION: str(board_version) if board_version is not None else None,
             ATTR_CONFIGURATION_URL: f"https://freeair-connect.de/?serialnumber={self.serial_no}",
         }
